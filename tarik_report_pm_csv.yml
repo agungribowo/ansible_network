@@ -1,0 +1,43 @@
+---
+- name: Penarikan Report SW PM ke CSV
+  hosts: sw_huawei
+  gather_facts: yes  # Dibutuhkan untuk mengambil variabel tanggal/waktu
+
+  tasks:
+    - name: Menjalankan Command PM
+      community.huawei.ce_command:
+        commands:
+          - display health
+          - display cpu
+          - display memory
+          - display alarm active
+          - display current-configuration
+      register: pm_output
+
+    - name: Simpan Full Report ke TXT (Sebagai Referensi Detail)
+      copy:
+        content: "{{ pm_output.stdout | join('\n\n') }}"
+        dest: "./report/detail/PM_{{ inventory_hostname }}.txt"
+      delegate_to: localhost
+
+    - name: Membuat Header CSV (Hanya dijalankan sekali)
+      copy:
+        dest: "./report/PM_Summary_Report.csv"
+        content: "Hostname,Tanggal,Waktu,CPU_Status,Memory_Status,Alarm_Status,Full_Log_File\n"
+        force: no
+      delegate_to: localhost
+      run_once: true
+
+    - name: Memasukkan Data Ringkasan ke CSV
+      lineinfile:
+        path: "./report/PM_Summary_Report.csv"
+        # Menggunakan regex_search untuk mengambil persentase saja dari output
+        line: >
+          {{ inventory_hostname }},
+          {{ ansible_date_time.date }},
+          {{ ansible_date_time.time }},
+          "{{ pm_output.stdout[1] | regex_search('\\d+%') }}",
+          "{{ pm_output.stdout[2] | regex_search('\\d+%') }}",
+          "{{ 'ALARM_ACTIVE' if 'Alarm' in pm_output.stdout[3] else 'NORMAL' }}",
+          "PM_{{ inventory_hostname }}.txt"
+      delegate_to: localhost

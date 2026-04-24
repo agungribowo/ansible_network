@@ -1,0 +1,42 @@
+---
+- name: Backup Konfigurasi dan Neighbors ke Excel
+  hosts: my_switches
+  gather_facts: no
+
+  tasks:
+    - name: Ambil Config dan CDP Neighbors
+      cisco.ios.ios_command:
+        commands:
+          - show running-config
+          - show cdp neighbors detail
+      register: network_output
+
+    - name: Simpan Running Config
+      copy:
+        content: "{{ network_output.stdout[0] }}"
+        dest: "./backups/{{ inventory_hostname }}_config.txt"
+      delegate_to: localhost
+
+    - name: Simpan Detail CDP
+      copy:
+        content: "{{ network_output.stdout[1] }}"
+        dest: "./backups/{{ inventory_hostname }}_cdp_detail.txt"
+      delegate_to: localhost
+
+    - name: Ekstrak Hostname Tetangga untuk Laporan
+      set_fact:
+        neighbor_list: "{{ network_output.stdout[1] | regex_findall('Device ID: (\\S+)') | join('; ') }}"
+
+    - name: Catat ke CSV Summary
+      lineinfile:
+        path: "./reports/summary_backup.csv"
+        line: "{{ inventory_hostname }},SUCCESS,Tetangga: {{ neighbor_list }}"
+        create: yes
+      delegate_to: localhost
+
+    - name: Append ke Laporan CSV (Untuk Excel)
+      lineinfile:
+        path: "./reports/backup_summary.csv"
+        line: "{{ inventory_hostname }},{{ ansible_date_time.date }},SUCCESS"
+        create: yes
+      delegate_to: localhost

@@ -1,11 +1,10 @@
----
 - name: Penarikan Report SW PM ke CSV
   hosts: sw_huawei
-  gather_facts: yes  # Dibutuhkan untuk mengambil variabel tanggal/waktu
+  gather_facts: no
 
   tasks:
     - name: Menjalankan Command PM
-      ansible.netcommon.cli_command:
+      ansible.netcommon.cli_commands:
         commands:
           - display health
           - display cpu
@@ -31,13 +30,12 @@
     - name: Memasukkan Data Ringkasan ke CSV
       lineinfile:
         path: "./report/PM_Summary_Report.csv"
-        # Menggunakan regex_search untuk mengambil persentase saja dari output
         line: >
           {{ inventory_hostname }},
-          {{ ansible_date_time.date }},
-          {{ ansible_date_time.time }},
-          "{{ pm_output.stdout[1] | regex_search('\\d+%') }}",
-          "{{ pm_output.stdout[2] | regex_search('\\d+%') }}",
-          "{{ 'ALARM_ACTIVE' if 'Alarm' in pm_output.stdout[3] else 'NORMAL' }}",
+          {{ lookup('pipe', 'date +%Y-%m-%d') }},
+          {{ lookup('pipe', 'date +%H:%M:%S') }},
+          "{{ pm_output.stdout[1] | regex_search('CPU.*?(\\d+%)', '\\1') | default('N/A') }}",
+          "{{ pm_output.stdout[2] | regex_search('Memory.*?(\\d+%)', '\\1') | default('N/A') }}",
+          "{{ 'ALARM_ACTIVE' if (pm_output.stdout[3] is search('Alarm')) else 'NORMAL' }}",
           "PM_{{ inventory_hostname }}.txt"
       delegate_to: localhost

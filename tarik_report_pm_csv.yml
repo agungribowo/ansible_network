@@ -5,7 +5,7 @@
 
   tasks:
     - name: Menjalankan Command PM
-      community.huawei.ce_command:
+      ansible.netcommon.cli_command:
         commands:
           - display health
           - display cpu
